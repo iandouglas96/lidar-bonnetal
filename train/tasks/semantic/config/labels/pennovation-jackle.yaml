@@ -74,16 +74,30 @@ content: # as a ratio with the total number of points
 # 0.0025242
 # 0.0000000
 # 0.0000000
-  0: 0.6505750 #  0 : "unlabelled"
-  1: 0.1950798 #  1 : "road"
-  2: 0.0701022 #  2: "vegetation"
-  3: 0.0304683 #  3: "building"
-  4: 0.0126586  #  4: "grass-sidewalk
-  5: 0.0399787  #  5: "vehicle"
-  6: 0.0010986  #  6: "human"
-  7: 0.0000387  #  7: "gravel"
-  8: 0.0  #  8: "tree_trunk"
-  9: 0.0  #  9: "light_pole"
+
+#no ambient
+  0: 0.58977436  #  0 : "unlabelled"
+  1: 0.14888666  #  1 : "road"
+  2: 0.1063175   #  2: "vegetation"
+  3: 0.04309046  #  3: "building"
+  4: 0.06981749  #  4: "grass-sidewalk
+  5: 0.01891934  #  5: "vehicle"
+  6: 0.00211804  #  6: "human"
+  7: 0.02107615  #  7: "gravel"
+  8: 0.          #  8: "tree_trunk"
+  9: 0.          #  9: "light_pole"
+
+#ambient
+#  0: 0.57061269  #  0 : "unlabelled"
+#  1: 0.13179147  #  1 : "road"
+#  2: 0.12376589  #  2: "vegetation"
+#  3: 0.03589451  #  3: "building"
+#  4: 0.09511048  #  4: "grass-sidewalk
+#  5: 0.00581696  #  5: "vehicle"
+#  6: 0.00273273  #  6: "human"
+#  7: 0.03427527  #  7: "gravel"
+#  8: 0.          #  8: "tree_trunk"
+#  9: 0.          #  9: "light_pole"
 
 # classes that are indistinguishable from single scan or inconsistent in
 # ground truth are mapped to their closest equivalent
@@ -121,8 +135,8 @@ learning_ignore: # Ignore classes
   5: False     
   6: False
   7: False    
-  8: False    
-  9: False    
+  8: True   
+  9: True   
 
 split: # sequence numbers
   train:

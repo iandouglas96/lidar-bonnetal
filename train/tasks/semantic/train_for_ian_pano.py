@@ -20,7 +20,7 @@ if __name__ == '__main__':
         '--dataset_root_directory', '-d',
         type=str,
         required=False,
-        default="../../../pennovation_dataset_jackle/", # pennovation_dataset
+        default="../../../no_ambient/combined", # pennovation_dataset
         help='Dataset to train with. No Default',
     )
     parser.add_argument(

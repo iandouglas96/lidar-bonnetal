@@ -14,7 +14,7 @@ import traceback
 
 def convert_images_to_labels_pcds(for_jackle, for_indoor = False):
     if for_jackle:
-        data_dir = "/home/sam/semantic-segmentation/lidar-bonnetal/pennovation_dataset_jackle/"
+        data_dir = "/workspace/data/lidar-bonnetal/no_ambient/combined/"
     else:
         if for_indoor:
             data_dir = "/home/sam/semantic-segmentation/lidar-bonnetal/indoor_dataset/"
@@ -51,6 +51,10 @@ def convert_images_to_labels_pcds(for_jackle, for_indoor = False):
     pc_size = -1
     d = None
 
+    sum_num_pts = 0
+    sum_means = np.zeros((5,), dtype=np.float64)
+    sum_means_sq = np.zeros((5,), dtype=np.float64)
+
     for fname in fnames:
         fname_no_png = fname.split(".png")[0]
         fname_no_prefix = fname_no_png.split('/')[-1]
@@ -60,6 +64,15 @@ def convert_images_to_labels_pcds(for_jackle, for_indoor = False):
 
         scan = cv2.imread(scan_fname, cv2.IMREAD_UNCHANGED)
         label = cv2.imread(label_fname)
+
+        # accumulate stats
+        mask = np.logical_not(scan[:,:,0] == 0)
+        sum_means[:4] += np.sum(scan[mask, :], axis=0)
+        sum_means_sq[:4] += np.sum(scan[mask, :]**2, axis=0)
+        rng = np.linalg.norm(scan[mask, :3], axis=1)
+        sum_means[4] += np.sum(rng)
+        sum_means_sq[4] += np.sum(rng**2)
+        sum_num_pts += np.sum(mask)
 
         # all rays that do not have any return will be set as 0, and they are not considered during the back-propagation
         scan = np.nan_to_num(scan, copy=True, nan=0.0, posinf=None, neginf=None)
@@ -254,6 +267,10 @@ def convert_images_to_labels_pcds(for_jackle, for_indoor = False):
     percent_array = np.mean(stats, axis=1) / np.sum(np.mean(stats, axis=1))
     print(percent_array)
     np.savetxt(data_dir + "class_points_divided_by_total_points.txt", percent_array,fmt='%.7f')
+    print("means for axes values are (x,y,z,intensity, range):")
+    print(sum_means / sum_num_pts)
+    print("std dev for axes values are (x,y,z,intensity, range):")
+    print(np.sqrt((sum_means_sq - (sum_means*sum_means/sum_num_pts)) / (sum_num_pts - 1)))
 
 
 if __name__ == '__main__':

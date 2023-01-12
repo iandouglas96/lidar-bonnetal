@@ -1,7 +1,9 @@
 import os
 import numpy as np
 import torch
+import time
 from torch.utils.data import Dataset
+from numpy.random import default_rng
 # from common.laserscan import LaserScan, SemLaserScan
 
 EXTENSIONS_SCAN = ['.pcd']
@@ -62,6 +64,16 @@ class SemanticKitti(Dataset):
     # are multiple repeated entries, so the number that matters is how many
     # there are for the xentropy)
     self.nclasses = len(self.learning_map_inv)
+
+    # compute intrinsics
+    azis = np.arange(2*np.pi, 0, -np.pi * 2 / self.sensor_img_W)
+    vfov = np.radians(self.sensor_fov_up - self.sensor_fov_down)
+    elevs = np.arange(vfov/2, -vfov/2-0.0001, -vfov / (self.sensor_img_H - 1))
+    self.intrinsic_proj = np.empty((self.sensor_img_H, self.sensor_img_W, 3), dtype=np.float32)
+    # x,y,z
+    self.intrinsic_proj[:,:,0] = np.cos(elevs[:, None]) * np.cos(azis)
+    self.intrinsic_proj[:,:,1] = np.cos(elevs[:, None]) * np.sin(azis)
+    self.intrinsic_proj[:,:,2] = np.sin(elevs[:, None])
 
     # sanity checks
 
@@ -143,7 +155,13 @@ class SemanticKitti(Dataset):
       scan_remissions = np.zeros_like(pc.pc_data['intensity'])
     else:
       scan_remissions = pc.pc_data['intensity']
-
+      # affine transform of intensities
+      #scan_remissions *= torch.normal(mean=1.0, std=0.3, size=(1,)).item()
+      #scan_remissions += torch.normal(mean=0.0, std=100, size=(1,)).item()
+      scan_remissions *= torch.rand(size=(1,)).item() * 0.6 + 0.7 # [0.7, 1.3)
+      scan_remissions += torch.rand(size=(1,)).item() * 100 - 50 # [-100, 100)
+      # no negative values allowed
+      scan_remissions = np.clip(scan_remissions, a_min=0, a_max=None)
     
     # check scan makes sense
     if not isinstance(scan_points, np.ndarray):
@@ -163,6 +181,25 @@ class SemanticKitti(Dataset):
 
     # get depth of all points
     depth = np.linalg.norm(scan_points, 2, axis=1)
+
+    H = self.sensor_img_H
+    W = self.sensor_img_W
+    shift = int(torch.rand(1)[0] * W)
+    scan_remissions = np.roll(scan_remissions.reshape(H, W), shift, axis=1).flatten()
+    depth = np.roll(depth.reshape(H, W), shift, axis=1)
+    xyz_pano = depth[:, :, None] * self.intrinsic_proj
+
+    vec1 = np.roll(xyz_pano, 1, axis=0) - xyz_pano
+    vec2 = np.roll(xyz_pano, 1, axis=1) - xyz_pano
+    normals = np.cross(vec1, vec2)
+    normal_norms = np.linalg.norm(normals, axis=2)
+
+    nonzero = (normal_norms > 0)
+    normals[nonzero, :] /= normal_norms[nonzero][:, None]
+
+    scan_points = normals.reshape(-1, 3)
+    depth = depth.flatten()
+
     # depth[depth == 0] = 0.0000001 #Stop divide by 0
 
     # # thresholding by range (distance), ignore points that are far away, only consider points within the given range
@@ -224,8 +261,6 @@ class SemanticKitti(Dataset):
     # scan_proj_idx[scan_proj_y, scan_proj_x] = indices
     # scan_proj_mask = (scan_proj_idx > 0).astype(np.int32)
 
-    H = self.sensor_img_H
-    W = self.sensor_img_W
     scan_proj_range = depth.reshape(H, W).astype(np.float32)
     scan_proj_xyz = scan_points.reshape((H, W, 3)).astype(np.float32)
     scan_proj_remission = scan_remissions.reshape(H, W).astype(np.float32)
@@ -256,12 +291,11 @@ class SemanticKitti(Dataset):
         raise TypeError("Label should be numpy array")
       # only fill in attribute if the right size
       if label.shape[0] == scan_points.shape[0]:
-        sem_label = label.astype(int)  # semantic label in lower half
-        # only map colors to labels that exist (proj_idx -1 is no data)
-        mask = (scan_proj_idx >= 0)
+        sem_label = label.astype(np.int32)  # semantic label in lower half
         # projection color with semantic labels
-        proj_sem_label = np.zeros((self.sensor_img_H, self.sensor_img_W), dtype=np.int32)
-        proj_sem_label[mask] = sem_label[scan_proj_idx[mask]]
+        proj_sem_label = sem_label.reshape(self.sensor_img_H, self.sensor_img_W)
+        proj_sem_label = np.roll(proj_sem_label, shift, axis=1)
+        sem_label = proj_sem_label.flatten()
       else:
         raise ValueError("Scan and Label don't contain same number of points")
       

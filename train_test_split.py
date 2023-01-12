@@ -9,7 +9,7 @@ import time
 
 def train_test_split_save(for_jackle, for_indoor = False):
     if for_jackle:
-        dataset_name = "pennovation_dataset_jackle"
+        dataset_name = "no_ambient/combined"
         label_prefix = "label_pano" #"label_sweep"
         print("Confirm that this is correct: prefix for the LIDAR data is :", label_prefix)
         time.sleep(2)
@@ -20,9 +20,9 @@ def train_test_split_save(for_jackle, for_indoor = False):
         else:
             dataset_name = "pennovation_dataset"
             label_prefix = "label"
-    cloud_dir = "/home/sam/semantic-segmentation/lidar-bonnetal/"+dataset_name+"/converted_scans/"
-    label_dir = "/home/sam/semantic-segmentation/lidar-bonnetal/"+dataset_name+"/converted_labels/"
-    save_dir = "/home/sam/semantic-segmentation/lidar-bonnetal/"+dataset_name+"/"
+    cloud_dir = "/workspace/data/lidar-bonnetal/"+dataset_name+"/converted_scans/"
+    label_dir = "/workspace/data/lidar-bonnetal/"+dataset_name+"/converted_labels/"
+    save_dir = "/workspace/data/lidar-bonnetal/"+dataset_name+"/"
     clouds = glob.glob(cloud_dir + 'point_cloud_*.pcd')
     test_portion = 0.1
     print("percentage of data splited as test set: ", test_portion)

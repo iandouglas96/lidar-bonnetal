@@ -26,6 +26,18 @@ from tasks.semantic.modules.segmentator import *
 from tasks.semantic.modules.ioueval import *
 
 
+class WeightedNLLLoss():
+  def __init__(self, weight, device):
+      self.class_weight_sum = torch.mean(weight)
+      self.criterion = nn.NLLLoss(weight=weight, reduction='none').to(device)
+
+  def __call__(self, res, labels, weights=None):
+      if weights is None:
+          return torch.mean(self.criterion(res, labels) / self.class_weight_sum)
+
+      weights_clamped = torch.clip(weights, min=10, max=100) / 10
+      return torch.mean(weights_clamped * self.criterion(res, labels) / self.class_weight_sum)
+
 class Trainer():
   def __init__(self, ARCH, DATA, datadir, logdir, path=None):
     # parameters
@@ -112,7 +124,7 @@ class Trainer():
 
     # loss
     if "loss" in self.ARCH["train"].keys() and self.ARCH["train"]["loss"] == "xentropy":
-      self.criterion = nn.NLLLoss(weight=self.loss_w).to(self.device)
+      self.criterion = WeightedNLLLoss(self.loss_w, self.device)
     else:
       raise Exception('Loss not defined in config file')
     # loss as dataparallel too (more images in batch)
@@ -303,7 +315,6 @@ class Trainer():
 
     # switch to train mode
     model.train()
-
     end = time.time()
     for i, (in_vol, proj_mask, proj_labels, _, path_seq, path_name, _, _, _, _, _, _, _, _, _) in enumerate(train_loader):
         # measure data loading time
@@ -343,7 +354,7 @@ class Trainer():
       # measure elapsed time
       batch_time.update(time.time() - end)
       end = time.time()
-
+  
       # get gradient updates and weights, so I can print the relationship of
       # their norms
       update_ratios = []
@@ -359,7 +370,7 @@ class Trainer():
       update_mean = update_ratios.mean()
       update_std = update_ratios.std()
       update_ratio_meter.update(update_mean)  # over the epoch
-
+  
       if show_scans:
         # get the first scan in batch and project points
         mask_np = proj_mask[0].cpu().numpy()
@@ -369,7 +380,7 @@ class Trainer():
         out = Trainer.make_log_img(depth_np, mask_np, pred_np, gt_np, color_fn)
         cv2.imshow("sample_training", out)
         cv2.waitKey(1)
-
+  
       if i % self.ARCH["train"]["report_batch"] == 0:
         print('Lr: {lr:.3e} | '
               'Update: {umean:.3e} mean,{ustd:.3e} std | '
@@ -382,12 +393,12 @@ class Trainer():
                   epoch, i, len(train_loader), batch_time=batch_time,
                   data_time=data_time, loss=losses, acc=acc, iou=iou, lr=lr,
                   umean=update_mean, ustd=update_std))
-
+  
       # step scheduler
       scheduler.step()
-
+  
     return acc.avg, iou.avg, losses.avg, update_ratio_meter.avg
-
+  
   def validate(self, val_loader, model, criterion, evaluator, class_func, color_fn, save_scans):
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -422,17 +433,21 @@ class Trainer():
         losses.update(loss.mean().item(), in_vol.size(0))
 
         if save_scans:
-          # get the first scan in batch and project points
-          mask_np = proj_mask[0].cpu().numpy()
-          depth_np = in_vol[0][0].cpu().numpy()
-          pred_np = argmax[0].cpu().numpy()
-          gt_np = proj_labels[0].cpu().numpy()
-          out = Trainer.make_log_img(depth_np,
-                                     mask_np,
-                                     pred_np,
-                                     gt_np,
-                                     color_fn)
-          rand_imgs.append(out)
+          for ind in range(proj_mask.shape[0]):
+              mask_np = proj_mask[ind].cpu().numpy()
+              depth_np = in_vol[ind][0].cpu().numpy()
+              xyz_np = in_vol[ind][1:4].cpu().numpy()
+              #cv2.imwrite('depth.png', (depth_np+3)*50)
+              #cv2.imwrite('normal.png', (np.transpose(xyz_np, (1,2,0))+2)*50)
+
+              pred_np = argmax[ind].cpu().numpy()
+              gt_np = proj_labels[ind].cpu().numpy()
+              out = Trainer.make_log_img(depth_np,
+                                         mask_np,
+                                         pred_np,
+                                         gt_np,
+                                         color_fn)
+              rand_imgs.append(out)
 
         # measure elapsed time
         batch_time.update(time.time() - end)

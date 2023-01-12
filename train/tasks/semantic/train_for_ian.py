@@ -27,7 +27,7 @@ if __name__ == '__main__':
         '--arch_cfg', '-ac',
         type=str,
         required=False,
-        default="./config/arch/darknet-smallest-1024px-pennovation-jackle.yaml",
+        default="./config/arch/darknet21-1024px-pennovation-jackle.yaml",
         help='Architecture yaml cfg file. See /config/arch for sample. No default!',
     )
     parser.add_argument(
